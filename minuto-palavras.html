@@ -45,8 +45,8 @@
   .pct{font-size:88px;font-weight:800;letter-spacing:-.04em;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1}
   .blocks{font-size:22px;letter-spacing:3px}
   .verdict{font-size:16px;color:var(--muted);max-width:280px;line-height:1.5}
-  #toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid var(--line);color:var(--text);padding:12px 22px;border-radius:99px;font-size:14px;font-weight:600;transition:transform .25s;z-index:20}
-  #toast.show{transform:translateX(-50%) translateY(0)}
+  #toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(140px);opacity:0;pointer-events:none;background:var(--surface);border:1px solid var(--line);color:var(--text);padding:12px 22px;border-radius:99px;font-size:14px;font-weight:600;transition:transform .25s,opacity .25s;z-index:20}
+  #toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 </style>
 </head>
 <body>
