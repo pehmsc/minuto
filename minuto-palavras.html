@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>MINUTO · Palavras</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14; --surface:#141A26; --line:#232D40;
+    --text:#EDF1F8; --muted:#6E7A90; --accent:#F76FA0; --good:#3FD9B7; --danger:#FF5C6E;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',system-ui,sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #hud{display:flex;justify-content:space-between;align-items:center;padding-top:calc(env(safe-area-inset-top,0px) + 14px);padding-left:18px;padding-right:18px;padding-bottom:14px}
+  #hud .tag{font-size:11px;letter-spacing:.22em;color:var(--muted);font-weight:600}
+  #hud #clock{font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+  #bar{height:5px;background:var(--line);margin:0 18px;border-radius:99px;overflow:hidden}
+  #fill{height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .3s}
+  #stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;padding:20px}
+  #wordLbl{font-size:15px;color:var(--muted);font-weight:600}
+  #wordLbl b{color:var(--text)}
+  .row{display:flex;gap:9px}
+  .slot{width:56px;height:64px;border-radius:14px;border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;background:transparent;transition:all .12s}
+  .slot.filled{border-style:solid;border-color:var(--accent);background:var(--surface)}
+  #slots.good .slot{border-color:var(--good);background:rgba(63,217,183,.14);color:var(--good)}
+  #slots.bad .slot{border-color:var(--danger);background:rgba(255,92,110,.12);animation:shake .35s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+  .tile{width:56px;height:64px;border-radius:14px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;transition:all .12s}
+  .tile:active{transform:scale(.92)}
+  .tile.used{opacity:.18;pointer-events:none}
+  #skipBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:11px 24px;font:600 14px 'Sora',sans-serif}
+  .screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px;text-align:center;z-index:10}
+  .hidden{display:none}
+  .eyebrow{font-size:11px;letter-spacing:.28em;color:var(--muted);font-weight:600}
+  h1{font-size:44px;font-weight:800;letter-spacing:-.02em}
+  h1 em{font-style:normal;color:var(--accent)}
+  .rule{font-size:15px;color:var(--muted);line-height:1.6;max-width:300px}
+  .rule b{color:var(--text)}
+  .big-btn{margin-top:8px;background:var(--accent);color:#2A0714;border:0;border-radius:16px;padding:18px 44px;font:800 17px 'Sora',sans-serif}
+  .big-btn:active{transform:scale(.96)}
+  .ghost{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:16px;padding:14px 30px;font:600 15px 'Sora',sans-serif}
+  .pct{font-size:88px;font-weight:800;letter-spacing:-.04em;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1}
+  .blocks{font-size:22px;letter-spacing:3px}
+  .verdict{font-size:16px;color:var(--muted);max-width:280px;line-height:1.5}
+  #toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid var(--line);color:var(--text);padding:12px 22px;border-radius:99px;font-size:14px;font-weight:600;transition:transform .25s;z-index:20}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="tag">MINUTO · PALAVRAS</span>
+    <span id="clock">60.0</span>
+  </div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="stage">
+    <div id="wordLbl">Palavra <b id="wNum">1</b> / 8</div>
+    <div class="row" id="slots"></div>
+    <div class="row" id="tiles"></div>
+    <button id="skipBtn">Passar (−5s)</button>
+  </div>
+</div>
+
+<div id="start" class="screen">
+  <div class="eyebrow">DESAFIO DIÁRIO · <span id="dateLbl"></span></div>
+  <h1>MIN<em>U</em>TO</h1>
+  <p class="rule">Letras baralhadas.<br>Toca nas letras e <b>forma a palavra</b> (pt-PT).<br><b>8 palavras</b> em 60 segundos.</p>
+  <button class="big-btn" id="playBtn">Jogar</button>
+</div>
+
+<div id="result" class="screen hidden">
+  <div class="eyebrow">MINUTO · PALAVRAS · <span id="dateLbl2"></span></div>
+  <div class="pct" id="pctLbl">0%</div>
+  <div class="blocks" id="blocksLbl"></div>
+  <div class="verdict" id="verdictLbl"></div>
+  <button class="big-btn" id="copyBtn">Copiar resultado</button>
+  <button class="ghost" id="againBtn">Treinar outra vez</button>
+</div>
+
+<div id="toast">Copiado — cola no grupo 😏</div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- daily seed ---------- */
+const now=new Date();
+const dateStr=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0');
+document.getElementById('dateLbl').textContent=dateStr;
+document.getElementById('dateLbl2').textContent=dateStr;
+let seed=0; const key=now.getFullYear()+'-'+(now.getMonth()+1)+'-'+now.getDate()+'-W';
+for(let i=0;i<key.length;i++){ seed=(seed*31+key.charCodeAt(i))>>>0; }
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+/* ---------- audio ---------- */
+let AC=null;
+function snd(f,d,type,g){ try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),v=AC.createGain();
+  o.type=type||'sine'; o.frequency.value=f; v.gain.value=(g||0.12);
+  o.connect(v); v.connect(AC.destination);
+  o.start(); v.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+(d||0.08));
+  o.stop(AC.currentTime+(d||0.08)+0.02);
+}catch(e){} }
+
+/* ---------- words (pt-PT, 5 letras, sem diacríticos) ---------- */
+const WORDS=['PRAIA','LIVRO','TEMPO','VERDE','NOITE','FESTA','CAMPO','PONTE','FORNO','PEDRA','PORTA','TERRA','VINHO','SONHO','BARCO','DENTE','FOLHA','CHUVA','MUNDO','CANTO','BANHO','PEIXE','CARTA','LINHA','ROUPA','MANGA','SALTO','TRIGO','LARGO','CURTO'];
+
+const DUR=60, TARGET=8, PENALTY=5;
+let rng, queue, idx=0, solved=0, current='', picked=[], locked=false, over=false, penal=0, timerIv=null, t0=0;
+
+function shuffled(arr,r){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(r()*(i+1)); const tmp=a[i];a[i]=a[j];a[j]=tmp; }
+  return a;
+}
+function scramble(w,r){
+  let s=w;
+  for(let tries=0;tries<20 && s===w;tries++){ s=shuffled(w.split(''),r).join(''); }
+  return s;
+}
+
+function nextWord(){
+  if(idx>=queue.length){ finish(solved/TARGET); return; }
+  current=queue[idx]; idx++;
+  picked=[]; locked=false;
+  document.getElementById('wNum').textContent=Math.min(TARGET,solved+1);
+  const slots=document.getElementById('slots'), tiles=document.getElementById('tiles');
+  slots.className='row'; slots.innerHTML=''; tiles.innerHTML='';
+  for(let i=0;i<5;i++){ const s=document.createElement('div'); s.className='slot'; slots.appendChild(s); }
+  const letters=scramble(current,rng).split('');
+  letters.forEach(function(L,i){
+    const tl=document.createElement('div');
+    tl.className='tile'; tl.textContent=L; tl.dataset.i=i;
+    tl.addEventListener('pointerdown',function(){ pick(tl,L); });
+    tiles.appendChild(tl);
+  });
+}
+function pick(tile,L){
+  if(locked||over||tile.classList.contains('used')||picked.length>=5) return;
+  tile.classList.add('used');
+  picked.push({tile:tile,L:L});
+  snd(380+picked.length*60,0.05,'triangle',0.09);
+  render();
+  if(picked.length===5) check();
+}
+function render(){
+  const slots=document.getElementById('slots').children;
+  for(let i=0;i<5;i++){
+    slots[i].textContent = picked[i] ? picked[i].L : '';
+    slots[i].classList.toggle('filled', !!picked[i]);
+  }
+}
+/* tap a filled slot to send the letter back */
+document.getElementById('slots').addEventListener('pointerdown',function(e){
+  if(locked||over) return;
+  const kids=Array.prototype.slice.call(document.getElementById('slots').children);
+  const i=kids.indexOf(e.target);
+  if(i<0||!picked[i]) return;
+  picked[i].tile.classList.remove('used');
+  picked.splice(i,1);
+  snd(260,0.05,'sine',0.07);
+  render();
+});
+function check(){
+  locked=true;
+  const guess=picked.map(function(p){return p.L;}).join('');
+  const slots=document.getElementById('slots');
+  if(guess===current){
+    slots.classList.add('good');
+    solved++;
+    document.getElementById('fill').style.width=(solved/TARGET*100)+'%';
+    snd(660,0.09,'triangle',0.12); setTimeout(function(){snd(880,0.11,'triangle',0.12);},80);
+    if(solved>=TARGET){ setTimeout(function(){ finish(1); },450); return; }
+    setTimeout(nextWord,450);
+  } else {
+    slots.classList.add('bad');
+    snd(170,0.2,'sawtooth',0.13);
+    setTimeout(function(){
+      slots.classList.remove('bad');
+      picked.forEach(function(p){ p.tile.classList.remove('used'); });
+      picked=[]; render(); locked=false;
+    },420);
+  }
+}
+document.getElementById('skipBtn').addEventListener('pointerdown',function(){
+  if(over||locked) return;
+  penal+=PENALTY;
+  snd(220,0.1,'square',0.08);
+  nextWord();
+});
+
+/* ---------- timer ---------- */
+function startTimer(){
+  t0=Date.now();
+  timerIv=setInterval(function(){
+    const left=DUR-(Date.now()-t0)/1000-penal;
+    document.getElementById('clock').textContent=Math.max(0,left).toFixed(1);
+    if(left<=0 && !over){ finish(solved/TARGET); }
+  },100);
+}
+
+/* ---------- result ---------- */
+function finish(f){
+  if(over) return;
+  over=true; if(timerIv) clearInterval(timerIv);
+  const pct=Math.min(100,Math.round(f*100));
+  document.getElementById('result').classList.remove('hidden');
+  const lbl=document.getElementById('pctLbl');
+  let cur=0;
+  const iv=setInterval(function(){
+    cur=Math.min(pct,cur+3); lbl.textContent=cur+'%';
+    if(cur>=pct){ clearInterval(iv); if(pct===100) snd(880,0.4,'triangle',0.14); }
+  },18);
+  const filled=Math.round(pct/10);
+  document.getElementById('blocksLbl').textContent='▓'.repeat(filled)+'░'.repeat(10-filled);
+  const v = pct>=100?'MINUTO COMPLETO. Dicionário ambulante.':pct>=85?'Quase. QUASE. Amanhã cai.':pct>=60?'Tão perto que dói.':pct>=30?'A meio caminho.':'As letras ganharam. Para já.';
+  document.getElementById('verdictLbl').textContent=v;
+  window.__share='MINUTO 🔤 Palavras · '+dateStr+'\n'+pct+'% '+'▓'.repeat(filled)+'░'.repeat(10-filled)+'\nConsegues melhor?';
+}
+
+/* ---------- buttons ---------- */
+document.getElementById('playBtn').addEventListener('click',function(){
+  if(AC&&AC.state==='suspended')AC.resume();
+  snd(520,0.08,'triangle');
+  document.getElementById('start').classList.add('hidden');
+  rng=mulberry32(seed);
+  queue=shuffled(WORDS,rng).slice(0,14);
+  idx=0; solved=0; penal=0; over=false;
+  startTimer(); nextWord();
+});
+document.getElementById('againBtn').addEventListener('click',function(){ location.reload(); });
+document.getElementById('copyBtn').addEventListener('click',function(){
+  const txt=window.__share||'';
+  function ok(){ const tEl=document.getElementById('toast'); tEl.classList.add('show'); setTimeout(function(){tEl.classList.remove('show');},1600); snd(700,0.07,'triangle'); }
+  function fallback(){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok(); }
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok,fallback); } else fallback();
+});
+})();
+</script>
+</body>
+</html>

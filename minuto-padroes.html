@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>MINUTO · Padrões</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14; --surface:#141A26; --line:#232D40;
+    --text:#EDF1F8; --muted:#6E7A90; --accent:#3FD9B7; --danger:#FF5C6E;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',system-ui,sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #hud{display:flex;justify-content:space-between;align-items:center;padding-top:calc(env(safe-area-inset-top,0px) + 14px);padding-left:18px;padding-right:18px;padding-bottom:14px}
+  #hud .tag{font-size:11px;letter-spacing:.22em;color:var(--muted);font-weight:600}
+  #hud #clock{font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+  #bar{height:5px;background:var(--line);margin:0 18px;border-radius:99px;overflow:hidden}
+  #fill{height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .3s}
+  #stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:20px}
+  #phase{font-size:13px;letter-spacing:.24em;font-weight:600;color:var(--muted);height:18px}
+  #phase.go{color:var(--accent)}
+  #roundLbl{font-size:15px;color:var(--muted);font-weight:600}
+  #roundLbl b{color:var(--text)}
+  #grid{display:grid;gap:10px}
+  .cell{width:100%;height:100%;background:var(--surface);border:1px solid var(--line);border-radius:14px;transition:background .12s,transform .12s,border-color .12s}
+  .cell.on{background:var(--accent);border-color:var(--accent);box-shadow:0 0 22px rgba(63,217,183,.45)}
+  .cell.hit{background:var(--accent);border-color:var(--accent);transform:scale(.92)}
+  .cell.bad{background:var(--danger);border-color:var(--danger);animation:shake .35s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+  .screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px;text-align:center;z-index:10}
+  .hidden{display:none}
+  .eyebrow{font-size:11px;letter-spacing:.28em;color:var(--muted);font-weight:600}
+  h1{font-size:44px;font-weight:800;letter-spacing:-.02em}
+  h1 em{font-style:normal;color:var(--accent)}
+  .rule{font-size:15px;color:var(--muted);line-height:1.6;max-width:300px}
+  .rule b{color:var(--text)}
+  .big-btn{margin-top:8px;background:var(--accent);color:#06201A;border:0;border-radius:16px;padding:18px 44px;font:800 17px 'Sora',sans-serif}
+  .big-btn:active{transform:scale(.96)}
+  .ghost{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:16px;padding:14px 30px;font:600 15px 'Sora',sans-serif}
+  .pct{font-size:88px;font-weight:800;letter-spacing:-.04em;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1}
+  .blocks{font-size:22px;letter-spacing:3px}
+  .verdict{font-size:16px;color:var(--muted);max-width:280px;line-height:1.5}
+  #toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid var(--line);color:var(--text);padding:12px 22px;border-radius:99px;font-size:14px;font-weight:600;transition:transform .25s;z-index:20}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span class="tag">MINUTO · PADRÕES</span>
+    <span id="clock">60.0</span>
+  </div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="stage">
+    <div id="roundLbl">Ronda <b id="rNum">1</b> / 12</div>
+    <div id="grid"></div>
+    <div id="phase">MEMORIZA</div>
+  </div>
+</div>
+
+<div id="start" class="screen">
+  <div class="eyebrow">DESAFIO DIÁRIO · <span id="dateLbl"></span></div>
+  <h1>MIN<em>U</em>TO</h1>
+  <p class="rule">O padrão acende <b>1 segundo</b>.<br>Reproduz de memória.<br><b>Um erro</b> e acabou.<br>12 rondas em 60 segundos.</p>
+  <button class="big-btn" id="playBtn">Jogar</button>
+</div>
+
+<div id="result" class="screen hidden">
+  <div class="eyebrow">MINUTO · PADRÕES · <span id="dateLbl2"></span></div>
+  <div class="pct" id="pctLbl">0%</div>
+  <div class="blocks" id="blocksLbl"></div>
+  <div class="verdict" id="verdictLbl"></div>
+  <button class="big-btn" id="copyBtn">Copiar resultado</button>
+  <button class="ghost" id="againBtn">Treinar outra vez</button>
+</div>
+
+<div id="toast">Copiado — cola no grupo 😏</div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- daily seed ---------- */
+const now=new Date();
+const dateStr=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0');
+document.getElementById('dateLbl').textContent=dateStr;
+document.getElementById('dateLbl2').textContent=dateStr;
+let seed=0; const key=now.getFullYear()+'-'+(now.getMonth()+1)+'-'+now.getDate()+'-P';
+for(let i=0;i<key.length;i++){ seed=(seed*31+key.charCodeAt(i))>>>0; }
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+let rng;
+
+/* ---------- audio ---------- */
+let AC=null;
+function snd(f,d,type,g){ try{
+  AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),v=AC.createGain();
+  o.type=type||'sine'; o.frequency.value=f; v.gain.value=(g||0.12);
+  o.connect(v); v.connect(AC.destination);
+  o.start(); v.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+(d||0.08));
+  o.stop(AC.currentTime+(d||0.08)+0.02);
+}catch(e){} }
+
+/* ---------- rounds config ---------- */
+const TOTAL=12, DUR=60;
+function cfg(r){ /* r: 1..12 */
+  if(r<=2) return {n:3,k:3};
+  if(r<=4) return {n:3,k:4};
+  if(r<=6) return {n:4,k:5};
+  if(r<=8) return {n:4,k:6};
+  if(r<=10) return {n:5,k:7};
+  return {n:5,k:8};
+}
+function showTime(r){ return Math.max(600, 1150 - r*35); }
+
+/* ---------- state ---------- */
+let round=1, found=0, needed=0, pattern=[], locked=true, timeLeft=DUR, timerIv=null, over=false;
+const grid=document.getElementById('grid');
+
+function buildGrid(n){
+  grid.innerHTML='';
+  const size=Math.min(window.innerWidth-64, 360);
+  grid.style.width=size+'px'; grid.style.height=size+'px';
+  grid.style.gridTemplateColumns='repeat('+n+',1fr)';
+  grid.style.gridTemplateRows='repeat('+n+',1fr)';
+  for(let i=0;i<n*n;i++){
+    const c=document.createElement('div');
+    c.className='cell'; c.dataset.i=i;
+    c.addEventListener('pointerdown',onTap);
+    grid.appendChild(c);
+  }
+}
+function startRound(){
+  const c=cfg(round);
+  document.getElementById('rNum').textContent=round;
+  buildGrid(c.n);
+  needed=c.k; found=0;
+  /* pick k distinct cells */
+  const all=[]; for(let i=0;i<c.n*c.n;i++) all.push(i);
+  for(let i=all.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); const tmp=all[i]; all[i]=all[j]; all[j]=tmp; }
+  pattern=all.slice(0,c.k);
+  /* show */
+  locked=true;
+  setPhase('MEMORIZA',false);
+  snd(330,0.07,'triangle',0.08);
+  const cells=grid.children;
+  pattern.forEach(function(i){ cells[i].classList.add('on'); });
+  setTimeout(function(){
+    if(over) return;
+    pattern.forEach(function(i){ cells[i].classList.remove('on'); });
+    locked=false;
+    setPhase('REPRODUZ',true);
+    snd(520,0.06,'triangle',0.08);
+  }, showTime(round));
+}
+function setPhase(txt,go){
+  const p=document.getElementById('phase');
+  p.textContent=txt;
+  p.className = go ? 'go' : '';
+}
+function onTap(e){
+  if(locked||over) return;
+  const i=+e.currentTarget.dataset.i;
+  if(e.currentTarget.classList.contains('hit')) return;
+  if(pattern.indexOf(i)!==-1){
+    e.currentTarget.classList.add('hit');
+    found++;
+    snd(440+found*70,0.07,'triangle',0.11);
+    if(found===needed){
+      locked=true;
+      setPhase('BOA ✓',true);
+      snd(760,0.1,'triangle',0.12); setTimeout(function(){snd(980,0.12,'triangle',0.12);},90);
+      round++;
+      updateBar();
+      if(round>TOTAL){ finish(1); return; }
+      setTimeout(startRound, 550);
+    }
+  } else {
+    e.currentTarget.classList.add('bad');
+    locked=true; over=true;
+    /* reveal what it was */
+    pattern.forEach(function(p){ grid.children[p].classList.add('on'); });
+    snd(160,0.25,'sawtooth',0.15); setTimeout(function(){snd(100,0.3,'sawtooth',0.11);},90);
+    setTimeout(function(){ finish(frac()); }, 900);
+  }
+}
+function frac(){ return Math.min(1,((round-1)+found/needed)/TOTAL); }
+function updateBar(){
+  document.getElementById('fill').style.width=(frac()*100)+'%';
+}
+
+/* ---------- timer ---------- */
+function startTimer(){
+  const t0=Date.now();
+  timerIv=setInterval(function(){
+    timeLeft=DUR-(Date.now()-t0)/1000;
+    document.getElementById('clock').textContent=Math.max(0,timeLeft).toFixed(1);
+    if(timeLeft<=0 && !over){ over=true; clearInterval(timerIv); finish(frac()); }
+  },100);
+}
+
+/* ---------- result ---------- */
+function finish(f){
+  over=true; if(timerIv) clearInterval(timerIv);
+  const pct=Math.min(100,Math.round(f*100));
+  document.getElementById('result').classList.remove('hidden');
+  const lbl=document.getElementById('pctLbl');
+  let cur=0;
+  const iv=setInterval(function(){
+    cur=Math.min(pct,cur+3); lbl.textContent=cur+'%';
+    if(cur>=pct){ clearInterval(iv); if(pct===100) snd(880,0.4,'triangle',0.14); }
+  },18);
+  const filled=Math.round(pct/10);
+  document.getElementById('blocksLbl').textContent='▓'.repeat(filled)+'░'.repeat(10-filled);
+  const v = pct>=100?'MINUTO COMPLETO. Memória de elefante.':pct>=85?'Quase. QUASE. Amanhã cai.':pct>=60?'Tão perto que dói.':pct>=30?'A meio caminho.':'O padrão ganhou. Para já.';
+  document.getElementById('verdictLbl').textContent=v;
+  window.__share='MINUTO 🧠 Padrões · '+dateStr+'\n'+pct+'% '+'▓'.repeat(filled)+'░'.repeat(10-filled)+'\nConsegues melhor?';
+}
+
+/* ---------- buttons ---------- */
+document.getElementById('playBtn').addEventListener('click',function(){
+  if(AC&&AC.state==='suspended')AC.resume();
+  snd(520,0.08,'triangle');
+  document.getElementById('start').classList.add('hidden');
+  rng=mulberry32(seed);
+  round=1; over=false;
+  updateBar(); startTimer(); startRound();
+});
+document.getElementById('againBtn').addEventListener('click',function(){ location.reload(); });
+document.getElementById('copyBtn').addEventListener('click',function(){
+  const txt=window.__share||'';
+  function ok(){ const tEl=document.getElementById('toast'); tEl.classList.add('show'); setTimeout(function(){tEl.classList.remove('show');},1600); snd(700,0.07,'triangle'); }
+  function fallback(){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok(); }
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok,fallback); } else fallback();
+});
+})();
+</script>
+</body>
+</html>
