@@ -19,7 +19,7 @@
   #hud #clock{font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
   #bar{height:5px;background:var(--line);margin:0 18px;border-radius:99px;overflow:hidden}
   #fill{height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .12s linear}
-  canvas{flex:1;display:block;width:100%}
+  canvas{flex:1;display:block;width:100%;touch-action:none;-webkit-touch-callout:none}
   .screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:32px;text-align:center;z-index:10}
   .hidden{display:none}
   .eyebrow{font-size:11px;letter-spacing:.28em;color:var(--muted);font-weight:600}
@@ -251,10 +251,21 @@ function finish(frac){
   window.__share='MINUTO ⚡ Física · '+dateStr+'\n'+pct+'% '+'▓'.repeat(filled)+'░'.repeat(10-filled)+'\nConsegues melhor?';
 }
 
-/* ---------- input ---------- */
-function down(e){ e.preventDefault(); if(AC&&AC.state==='suspended')AC.resume(); hold=true; }
-function up(e){ e.preventDefault(); hold=false; }
-cv.addEventListener('pointerdown',down); cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+/* ---------- input (iOS-proof: touch events + mouse fallback, whole document) ---------- */
+function resumeAC(){ if(AC&&AC.state==='suspended')AC.resume(); }
+let usingTouch=false;
+document.addEventListener('touchstart',function(e){
+  usingTouch=true;
+  if(running&&!dead){ e.preventDefault(); resumeAC(); hold=true; }
+},{passive:false});
+document.addEventListener('touchend',function(e){
+  if(running&&!dead){ e.preventDefault(); }
+  hold=false;
+},{passive:false});
+document.addEventListener('touchcancel',function(){ hold=false; });
+document.addEventListener('touchmove',function(e){ if(running) e.preventDefault(); },{passive:false});
+document.addEventListener('mousedown',function(){ if(usingTouch) return; if(running&&!dead){ resumeAC(); hold=true; } });
+document.addEventListener('mouseup',function(){ if(usingTouch) return; hold=false; });
 
 document.getElementById('playBtn').addEventListener('click',function(){
   snd(520,0.08,'triangle');
