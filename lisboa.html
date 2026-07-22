@@ -325,8 +325,13 @@ let charSel='ball', selectMode='play', kind='daily';
 
 /* ============ constants & tuning ============ */
 const DUR=60;
-const SPEED0=210, SPEED1=455, RISE=560, FALL=560, GRAV=1500, THRUST=3600, IMPULSE=140;
-const WARM=2600, XEND=19950;
+const SPEED0=210, SPEED1=445, RISE=560, FALL=560, GRAV=1500, THRUST=3600, IMPULSE=140;
+const WARM=2600, XEND=19650;
+/* deslocamento máximo REAL (com aceleração e inversão), não a aproximação linear */
+function maxUpDisp(T,v0){ const aUp=THRUST-GRAV; let y=0,v=v0; const dt=0.004;
+  for(let k=0;k<T;k+=dt){ v-=aUp*dt; if(v<-RISE)v=-RISE; y+=v*dt; } return -y; }
+function maxDnDisp(T,v0){ let y=0,v=v0; const dt=0.004;
+  for(let k=0;k<T;k+=dt){ v+=GRAV*dt; if(v>FALL)v=FALL; y+=v*dt; } return y; }
 function speed(){ return SPEED0+(SPEED1-SPEED0)*(t/DUR); }
 let mode='attract';
 let running=true, t=0, dist=0, ball, hold=false, walls, orbs, letters, parts, shake=0, milestone=0, dead=false;
@@ -342,14 +347,15 @@ function makeLevel(){
   const acc=(SPEED1-SPEED0)/DUR;
   while(x<22000){
     const lin=Math.max(0,Math.min(1,(x-WARM)/(XEND-WARM)));
-    const prog=Math.pow(lin,1.4);
-    const gap=265-127*prog;
-    const spacing=400-100*prog+rng()*50;
+    const prog=Math.pow(lin,1.25);
+    const gap=265-125*prog;
+    const spacing=400-70*prog+rng()*30;
     const v=Math.sqrt(SPEED0*SPEED0+2*acc*x);
     const dtB=spacing/v;
-    const maxD=0.92*RISE*dtB;
-    const lo=Math.max(mTop+gap/2, prevC-maxD);
-    const hi=Math.min(H-mTop-gap/2, prevC+maxD);
+    const maxUp=0.94*maxUpDisp(dtB,FALL*0.5);
+    const maxDn=0.94*maxDnDisp(dtB,-RISE*0.5);
+    const lo=Math.max(mTop+gap/2, prevC-maxUp);
+    const hi=Math.min(H-mTop-gap/2, prevC+maxDn);
     const c=lo+rng()*Math.max(1,hi-lo);
     walls.push({x:x,top:c-gap/2,bot:c+gap/2,w:54});
     prevC=c; x+=spacing;
@@ -361,8 +367,11 @@ function makeLevel(){
     const shRate=0.18-0.11*pr;
     if(rng()<0.5) orbs.push({x:w.x+w.w/2,y:(w.top+w.bot)/2,r:9,taken:false,sh:rng()<shRate});
     if(i<walls.length-1&&rng()<0.45){
-      const nx=(w.x+walls[i+1].x)/2,m=90;
-      orbs.push({x:nx,y:m+rng()*(H-2*m),r:9,taken:false,sh:rng()<shRate});
+      /* orbe intermédio: desvio da rota, mas sempre alcançável */
+      const c1=(w.top+w.bot)/2, c2=(walls[i+1].top+walls[i+1].bot)/2;
+      const dev=(rng()*2-1)*Math.min(110,Math.abs(c2-c1)*0.5+55);
+      const oy=Math.max(80,Math.min(H-80,(c1+c2)/2+dev));
+      orbs.push({x:(w.x+walls[i+1].x)/2,y:oy,r:9,taken:false,sh:rng()<shRate});
     }
   }
   orbTotal=orbs.length;
