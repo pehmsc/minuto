@@ -240,7 +240,7 @@ const firstRun=!lsGet('mn_played');
 
 function stats(city){
   try{ const raw=lsGet('mn_stats_'+city); if(raw) return JSON.parse(raw); }catch(e){}
-  return {n:0,best:0,sum:0,last:[]};
+  return {n:0,best:0,sum:0,last:[],bs:0,perf:0};
 }
 function saveStats(city,s){ lsSet('mn_stats_'+city, JSON.stringify(s)); }
 
@@ -325,12 +325,13 @@ let charSel='ball', selectMode='play', kind='daily';
 
 /* ============ constants & tuning ============ */
 const DUR=60;
-const SPEED0=210, SPEED1=400, RISE=560, FALL=560, GRAV=1500, THRUST=3600, IMPULSE=140;
-const WARM=2600, XEND=18300;
+const SPEED0=210, SPEED1=455, RISE=560, FALL=560, GRAV=1500, THRUST=3600, IMPULSE=140;
+const WARM=2600, XEND=19950;
 function speed(){ return SPEED0+(SPEED1-SPEED0)*(t/DUR); }
 let mode='attract';
 let running=true, t=0, dist=0, ball, hold=false, walls, orbs, letters, parts, shake=0, milestone=0, dead=false;
 let score=0, shield=false, invuln=0, comboT=0, combo=0, wob=0, attractY=0, attractVy=0;
+let orbTotal=0, orbsGot=0;
 let bestPct=stats(CITY).best;
 
 /* ============ generator ============ */
@@ -339,13 +340,14 @@ function makeLevel(){
   walls=[]; let x=1000, prevC=H/2;
   const mTop=64;
   const acc=(SPEED1-SPEED0)/DUR;
-  while(x<20500){
-    const prog=Math.max(0,Math.min(1,(x-WARM)/(XEND-WARM)));
-    const gap=265-100*prog;
-    const spacing=400-60*prog+rng()*60;
+  while(x<22000){
+    const lin=Math.max(0,Math.min(1,(x-WARM)/(XEND-WARM)));
+    const prog=Math.pow(lin,1.4);
+    const gap=265-127*prog;
+    const spacing=400-100*prog+rng()*50;
     const v=Math.sqrt(SPEED0*SPEED0+2*acc*x);
     const dtB=spacing/v;
-    const maxD=0.8*RISE*dtB;
+    const maxD=0.92*RISE*dtB;
     const lo=Math.max(mTop+gap/2, prevC-maxD);
     const hi=Math.min(H-mTop-gap/2, prevC+maxD);
     const c=lo+rng()*Math.max(1,hi-lo);
@@ -355,12 +357,15 @@ function makeLevel(){
   orbs=[];
   for(let i=0;i<walls.length;i++){
     const w=walls[i];
-    if(rng()<0.5) orbs.push({x:w.x+w.w/2,y:(w.top+w.bot)/2,r:9,taken:false,sh:rng()<0.16});
+    const pr=Math.max(0,Math.min(1,(w.x-WARM)/(XEND-WARM)));
+    const shRate=0.18-0.11*pr;
+    if(rng()<0.5) orbs.push({x:w.x+w.w/2,y:(w.top+w.bot)/2,r:9,taken:false,sh:rng()<shRate});
     if(i<walls.length-1&&rng()<0.45){
       const nx=(w.x+walls[i+1].x)/2,m=90;
-      orbs.push({x:nx,y:m+rng()*(H-2*m),r:9,taken:false,sh:rng()<0.16});
+      orbs.push({x:nx,y:m+rng()*(H-2*m),r:9,taken:false,sh:rng()<shRate});
     }
   }
+  orbTotal=orbs.length;
   letters=[];
   const step=(XEND-1600)/C.word.length;
   for(let i=0;i<C.word.length;i++){
@@ -369,7 +374,7 @@ function makeLevel(){
 }
 function reset(){
   t=0; dist=0; shake=0; milestone=0; dead=false;
-  score=0; shield=false; invuln=0; combo=0; comboT=0; hold=false;
+  score=0; shield=false; invuln=0; combo=0; comboT=0; hold=false; orbsGot=0;
   ball={y:H/2,vy:0,r:13}; parts=[];
   makeLevel(); updateScore();
 }
@@ -847,7 +852,7 @@ function loop(ts){
       if(ox<bx-60) continue;
       const dx=ox-bx,dy=o.y-ball.y;
       if(dx*dx+dy*dy<(o.r+ball.r+5)*(o.r+ball.r+5)){
-        o.taken=true;
+        o.taken=true; orbsGot++;
         if(o.sh){
           if(!shield){ shield=true; snd(520,0.12,'triangle',0.13); setTimeout(function(){snd(780,0.14,'triangle',0.13);},70); }
           else { score+=25; snd(700,0.1,'triangle',0.12); }
@@ -975,7 +980,9 @@ function finish(frac){
   const pct=Math.min(100,Math.round(frac*100));
   const s=stats(CITY);
   const isRecord = pct>s.best;
+  const perfect = pct>=100 && orbsGot>=orbTotal && orbTotal>0;
   s.n++; s.sum+=pct; s.best=Math.max(s.best,pct);
+  s.bs=Math.max(s.bs||0,score); if(perfect) s.perf=(s.perf||0)+1;
   s.last.push(pct); if(s.last.length>10) s.last.shift();
   saveStats(CITY,s); bestPct=s.best;
 
@@ -986,21 +993,25 @@ function finish(frac){
     cur=Math.min(pct,cur+3); lbl.textContent=cur+'%';
     if(cur>=pct){ clearInterval(iv); if(pct===100) snd(880,0.4,'triangle',0.14); }
   },18);
-  document.getElementById('recordTag').textContent = isRecord && s.n>1 ? '🔥 NOVO RECORDE' : '';
+  document.getElementById('recordTag').textContent = perfect ? '★ PERFEITO' : (isRecord && s.n>1 ? '🔥 NOVO RECORDE' : '');
   if(isRecord && s.n>1){ setTimeout(function(){ snd(700,0.1,'triangle',0.13); },400);
     setTimeout(function(){ snd(950,0.14,'triangle',0.13); },500); }
   const filled=Math.round(pct/10);
   document.getElementById('blocksLbl').textContent='▓'.repeat(filled)+'░'.repeat(10-filled);
-  document.getElementById('scoreLbl').innerHTML='<b>'+score+'⚡</b> apanhados';
+  document.getElementById('scoreLbl').innerHTML='<b>'+score+'⚡</b> · '+orbsGot+'/'+orbTotal+' orbes';
   const avg=Math.round(s.sum/s.n);
   document.getElementById('statLine').innerHTML=
-    '<div><b>'+s.best+'%</b>recorde</div><div><b>'+avg+'%</b>média</div><div><b>'+s.n+'</b>tentativas</div>';
+    '<div><b>'+s.best+'%</b>recorde</div><div><b>'+avg+'%</b>média</div><div><b>'+s.n+'</b>tentativas</div>'
+    +'<div><b>'+(s.bs||0)+'⚡</b>máx</div>';
   drawSpark(s.last,s.best);
-  const v=pct>=100?'MINUTO COMPLETO.':pct>=85?'Quase. QUASE. Da próxima cai.':pct>=60?'Tão perto que dói.':
+  const v=perfect?'Minuto completo E todos os orbes. Nada mais a provar hoje.':
+    pct>=100?('MINUTO COMPLETO. Faltaram '+(orbTotal-orbsGot)+' orbes — consegues o PERFEITO?'):
+    pct>=85?'Quase. QUASE. Da próxima cai.':pct>=60?'Tão perto que dói.':
     pct>=30?'A meio caminho do minuto.':'O minuto ganhou. Para já.';
   document.getElementById('verdictLbl').textContent=v;
   window.__share='MINUTO '+C.flag+' '+C.name+' · '+dateStr+'\n'+pct+'% '+'▓'.repeat(filled)+'░'.repeat(10-filled)+' · '+score+'⚡'
     +(s.best>pct?'\nRecorde: '+s.best+'%':'')
+    +(perfect?'\n★ PERFEITO':'')
     +'\nConsegues melhor? https://pehmsc.github.io/minuto/'+C.file;
 
   const st=lsGet('mn_word_'+CITY);
